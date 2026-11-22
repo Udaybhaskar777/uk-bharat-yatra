@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   MapPin, Landmark, Train, BedDouble, Heart, CheckCircle2,
   Clock, ShieldCheck, Plane, Bus, ExternalLink, Sparkles, ArrowRight, Navigation
@@ -16,26 +16,73 @@ const POPULAR_ORIGINS = [
   { code: "HWH", name: "Howrah Jn" },
 ];
 
-// Curated Wikimedia / Temple Hero Images with Sacred Gradient Fallback
-const TEMPLE_IMAGES = {
-  "ap-tirumala": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Tirumala_090615.jpg/960px-Tirumala_090615.jpg",
-  "ap-simhachalam": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Simhachalam_Temple_Gopuram.jpg/960px-Simhachalam_Temple_Gopuram.jpg",
-  "ap-srisailam": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Srisailam_temple_gopuram.jpg/960px-Srisailam_temple_gopuram.jpg",
-  "ap-vijayawada": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Kanaka_Durga_Temple%2C_Vijayawada.jpg/960px-Kanaka_Durga_Temple%2C_Vijayawada.jpg",
-  "tn-rameswaram": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Ramanathaswamy_temple_corridor.jpg/960px-Ramanathaswamy_temple_corridor.jpg",
-  "tn-meenakshi": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Madurai_Meenakshi_Amman_Temple_West_Tower.jpg/960px-Madurai_Meenakshi_Amman_Temple_West_Tower.jpg",
-  "tn-brihadeeswarar": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Brihadisvara_Temple_Thanjavur.jpg/960px-Brihadisvara_Temple_Thanjavur.jpg",
-  "ka-hampi": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Hampi_virupaksha_temple.jpg/960px-Hampi_virupaksha_temple.jpg",
-  "kl-padmanabhaswamy": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Padmanabhaswamy_Temple_Thiruvananthapuram.jpg/960px-Padmanabhaswamy_Temple_Thiruvananthapuram.jpg",
-  "uk-kedarnath": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Kedarnath_Temple_in_Rainy_season.jpg/960px-Kedarnath_Temple_in_Rainy_season.jpg",
-  "uk-badrinath": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Badrinath_Temple_%2C_Uttarakhand.jpg/960px-Badrinath_Temple_%2C_Uttarakhand.jpg",
-  "up-kashi": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Ahilyabai_Ghat_Varanasi.jpg/960px-Ahilyabai_Ghat_Varanasi.jpg",
-  "gj-somnath": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Somanath_mandir_%28cropped%29.jpg/960px-Somanath_mandir_%28cropped%29.jpg",
-  "gj-dwarkadhish": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Dwarkadhish_Temple%2C_Dwarka.jpg/960px-Dwarkadhish_Temple%2C_Dwarka.jpg",
-  "mp-mahakaleshwar": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Mahakaleshwar_Temple%2C_Ujjain.jpg/960px-Mahakaleshwar_Temple%2C_Ujjain.jpg",
-  "od-puri": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Jagannath_Temple%2C_Puri.jpg/960px-Jagannath_Temple%2C_Puri.jpg",
-  "od-konark": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Konarka_Temple.jpg/960px-Konarka_Temple.jpg",
-  "as-kamakhya": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Kamakhya_Temple_-_Guwahati.jpg/960px-Kamakhya_Temple_-_Guwahati.jpg",
+// Verified Direct Hero Photos + Wikipedia Search Title Mapping for All 65 Temples
+const TEMPLE_WIKI_TITLES = {
+  "ap-tirumala": "Venkateswara Temple, Tirumala",
+  "ap-srisailam": "Mallikarjuna Temple, Srisailam",
+  "ap-vijayawada": "Kanaka Durga Temple",
+  "ap-simhachalam": "Varaha Lakshmi Narasimha temple, Simhachalam",
+  "ap-srikalahasti": "Srikalahasteeswara temple",
+  "tg-yadadri": "Yadagirigutta Temple",
+  "tg-bhadrachalam": "Bhadrachalam Temple",
+  "tg-ramappa": "Ramappa Temple",
+  "tg-thousandpillar": "Thousand Pillar Temple",
+  "tn-rameswaram": "Ramanathaswamy Temple",
+  "tn-meenakshi": "Meenakshi Temple",
+  "tn-brihadeeswarar": "Brihadisvara Temple, Thanjavur",
+  "tn-arunachaleswarar": "Arunachalesvara Temple",
+  "tn-srirangam": "Ranganathaswamy Temple, Srirangam",
+  "ka-hampi": "Virupaksha Temple, Hampi",
+  "ka-udupi": "Udupi Sri Krishna Matha",
+  "ka-murudeshwar": "Murudeshwar Temple",
+  "ka-kukke": "Kukke Subramanya Temple",
+  "ka-chamundeshwari": "Chamundeshwari Temple",
+  "kl-padmanabhaswamy": "Padmanabhaswamy Temple",
+  "kl-sabarimala": "Sabarimala Temple",
+  "kl-guruvayur": "Guruvayur Temple",
+  "uk-kedarnath": "Kedarnath Temple",
+  "uk-badrinath": "Badrinath Temple",
+  "uk-gangotri": "Gangotri Temple",
+  "uk-yamunotri": "Yamunotri Temple",
+  "uk-neelkanth": "Neelkanth Mahadev Temple",
+  "up-kashi": "Kashi Vishwanath Temple",
+  "up-ayodhya": "Ram Mandir",
+  "up-vrindavan": "Banke Bihari Temple",
+  "up-mathura": "Krishna Janmasthan Temple Complex",
+  "jk-vaishnodevi": "Vaishno Devi Temple",
+  "jk-amarnath": "Amarnath Temple",
+  "jk-shankaracharya": "Shankaracharya Temple",
+  "hp-hidimba": "Hidimba Devi Temple",
+  "hp-jwalaji": "Jwalamukhi Temple",
+  "hp-jakhoo": "Jakhu Temple",
+  "pb-durgiana": "Durgiana Temple",
+  "hr-kurukshetra": "Brahma Sarovar",
+  "gj-somnath": "Somnath temple",
+  "gj-dwarkadhish": "Dwarkadhish Temple",
+  "gj-nageshwar": "Nageshvara Jyotirlinga",
+  "gj-ambaji": "Ambaji Temple",
+  "mh-siddhivinayak": "Siddhivinayak Temple, Mumbai",
+  "mh-shirdi": "Sai Baba Temple, Shirdi",
+  "mh-trimbakeshwar": "Trimbakeshwar Shiva Temple",
+  "mh-bhimashankar": "Bhimashankar Temple",
+  "mh-grishneshwar": "Grishneshwar Temple",
+  "mp-mahakaleshwar": "Mahakaleshwar Jyotirlinga",
+  "mp-omkareshwar": "Omkareshwar Temple",
+  "mp-khajuraho": "Kandariya Mahadeva Temple",
+  "rj-pushkar": "Brahma Temple, Pushkar",
+  "rj-khatushyam": "Khatushyam Temple",
+  "rj-karnimata": "Karni Mata Temple",
+  "rj-dilwara": "Dilwara Temples",
+  "od-puri": "Jagannath Temple, Puri",
+  "od-konark": "Konark Sun Temple",
+  "od-lingaraja": "Lingaraja Temple",
+  "jh-baidyanath": "Baidyanath Temple",
+  "br-mahabodhi": "Mahabodhi Temple",
+  "br-vishnupad": "Vishnupad Temple, Gaya",
+  "wb-dakshineswar": "Dakshineswar Kali Temple",
+  "wb-kalighat": "Kalighat Kali Temple",
+  "as-kamakhya": "Kamakhya Temple",
+  "tr-tripurasundari": "Tripura Sundari Temple",
 };
 
 export default function TempleDetailDrawer({
@@ -47,12 +94,39 @@ export default function TempleDetailDrawer({
 }) {
   const [activeTab, setActiveTab] = useState("history");
   const [fromStation, setFromStation] = useState("VZM");
-  const [imgError, setImgError] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [loadingPhoto, setLoadingPhoto] = useState(true);
+
+  useEffect(() => {
+    if (!temple) return;
+    let isMounted = true;
+    setLoadingPhoto(true);
+    setPhotoUrl(null);
+
+    const wikiTitle = TEMPLE_WIKI_TITLES[temple.id] || temple.name;
+    const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
+      wikiTitle
+    )}`;
+
+    fetch(apiUrl)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted) return;
+        const img = data?.originalimage?.source || data?.thumbnail?.source || null;
+        setPhotoUrl(img);
+        setLoadingPhoto(false);
+      })
+      .catch(() => {
+        if (isMounted) setLoadingPhoto(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [temple]);
 
   if (!temple) return null;
 
-  // Reset image error when temple changes
-  const heroImageUrl = TEMPLE_IMAGES[temple.id];
   const destCode = temple.travel.nearest_railway_code;
 
   const googleRouteUrl = userCoords
@@ -62,26 +136,26 @@ export default function TempleDetailDrawer({
   return (
     <div className="bg-[#0e1525] border border-amber-500/20 rounded-2xl overflow-hidden flex flex-col shadow-xl">
       {/* Temple Hero Photo Banner */}
-      <div className="relative h-48 sm:h-56 w-full bg-gradient-to-br from-orange-950 via-amber-900/40 to-slate-950 overflow-hidden">
-        {heroImageUrl && !imgError ? (
+      <div className="relative h-52 sm:h-60 w-full bg-gradient-to-br from-orange-950 via-amber-900/40 to-slate-950 overflow-hidden">
+        {photoUrl ? (
           <img
-            key={temple.id}
-            src={heroImageUrl}
+            key={photoUrl}
+            src={photoUrl}
             alt={temple.name}
-            onError={() => setImgError(true)}
-            className="w-full h-full object-cover object-center opacity-85"
+            onError={() => setPhotoUrl(null)}
+            className="w-full h-full object-cover object-center opacity-90 transition-opacity duration-300"
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-600/20 via-orange-900/30 to-slate-950 p-4 text-center">
-            <Landmark className="w-10 h-10 text-amber-400/70 mb-2" />
+            <Landmark className={`w-10 h-10 text-amber-400/70 mb-2 ${loadingPhoto ? "animate-pulse" : ""}`} />
             <span className="text-xs uppercase tracking-widest text-amber-300/80 font-bold">
-              {temple.state} • Sacred Heritage
+              {loadingPhoto ? "Loading Sacred Darshan..." : `${temple.state} • Sacred Heritage`}
             </span>
           </div>
         )}
 
         {/* Gradient Overlay + Title */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0e1525] via-[#0e1525]/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0e1525] via-[#0e1525]/35 to-transparent" />
 
         <div className="absolute bottom-3 left-5 right-5 flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -227,7 +301,6 @@ export default function TempleDetailDrawer({
                 <Train className="w-4 h-4" /> Direct Train Route Finder
               </span>
 
-              {/* From -> To Visual Selector */}
               <div className="grid grid-cols-1 sm:grid-cols-11 items-center gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <div className="sm:col-span-5">
                   <label className="text-[10px] uppercase text-slate-400 font-bold block mb-1">
@@ -273,7 +346,6 @@ export default function TempleDetailDrawer({
                 </div>
               </div>
 
-              {/* Action Buttons for Live Trains */}
               <div className="flex flex-wrap gap-2">
                 <a
                   href={`https://www.confirmtkt.com/trains/${fromStation}-to-${destCode}`}
