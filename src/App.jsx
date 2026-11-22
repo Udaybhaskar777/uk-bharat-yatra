@@ -25,6 +25,9 @@ export default function App() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedState, setExpandedState] = useState("Andhra Pradesh");
+  const [userCoords, setUserCoords] = useState(null);
+  const [locating, setLocating] = useState(false);
+
   const [userEmail, setUserEmail] = useState(() => localStorage.getItem("uk_yatra_email") || "");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
@@ -53,6 +56,27 @@ export default function App() {
       if (data?.user?.email) setUserEmail(data.user.email);
     });
   }, []);
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserCoords({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        setLocating(false);
+      },
+      () => {
+        alert("Please allow Location permission in your browser to calculate live route.");
+        setLocating(false);
+      }
+    );
+  };
 
   const handleToggleStatus = (templeId, type) => {
     if (!userEmail) {
@@ -87,7 +111,6 @@ export default function App() {
     return matchesFilter && matchesSearch;
   });
 
-  // Group filtered temples by State
   const templesByState = filteredTemples.reduce((acc, temple) => {
     if (!acc[temple.state]) acc[temple.state] = [];
     acc[temple.state].push(temple);
@@ -188,6 +211,9 @@ export default function App() {
             selectedTemple={selectedTemple}
             onSelectTemple={handleSelectTemple}
             visitedIds={visitedIds}
+            userCoords={userCoords}
+            onDetectLocation={handleDetectLocation}
+            locating={locating}
           />
 
           {/* State-wise Collapsible Accordion List */}
@@ -210,7 +236,6 @@ export default function App() {
                   key={stateName}
                   className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden"
                 >
-                  {/* State Header Row with Down Arrow */}
                   <button
                     onClick={() =>
                       setExpandedState(expandedState === stateName ? null : stateName)
@@ -234,7 +259,6 @@ export default function App() {
                     />
                   </button>
 
-                  {/* Expanded Temples Inside Selected State */}
                   {isOpen && (
                     <div className="p-2.5 pt-1 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-950/50">
                       {stateTemples.map((t) => {
@@ -277,7 +301,7 @@ export default function App() {
             isWishlisted={wishlistIds.includes(selectedTemple?.id)}
             isVisited={visitedIds.includes(selectedTemple?.id)}
             onToggleStatus={handleToggleStatus}
-            homeCity="Vizianagaram"
+            userCoords={userCoords}
           />
         </div>
       </main>
