@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #090d16;
+    color: #f8fafc;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+/* Dark Theme Filter for Free OpenStreetMap Tiles (No API Key Required) */
+.map-dark-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%);
+}
