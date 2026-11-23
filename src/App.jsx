@@ -302,6 +302,7 @@ export default function App() {
             isVisited={visitedIds.includes(selectedTemple?.id)}
             onToggleStatus={handleToggleStatus}
             userCoords={userCoords}
+            onDetectLocation={handleDetectLocation}
           />
         </div>
       </main>

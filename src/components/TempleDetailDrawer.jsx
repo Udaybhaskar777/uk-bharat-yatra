@@ -1,22 +1,11 @@
 import React, { useState, useEffect } from "react";
 import {
   MapPin, Landmark, Train, BedDouble, Heart, CheckCircle2,
-  Clock, ShieldCheck, Plane, Bus, ExternalLink, Sparkles, ArrowRight, Navigation
+  Clock, ShieldCheck, Plane, Bus, ExternalLink, Sparkles, ArrowRight,
+  Navigation, IndianRupee, LocateFixed, Wallet
 } from "lucide-react";
+import { INDIAN_STATIONS, getTrainOptionsAndFares } from "../utils/trainFareEngine";
 
-const POPULAR_ORIGINS = [
-  { code: "VZM", name: "Vizianagaram Jn" },
-  { code: "VSKP", name: "Visakhapatnam Jn" },
-  { code: "SC", name: "Secunderabad Jn" },
-  { code: "BZA", name: "Vijayawada Jn" },
-  { code: "MAS", name: "MGR Chennai Central" },
-  { code: "SBC", name: "KSR Bengaluru" },
-  { code: "NDLS", name: "New Delhi" },
-  { code: "CSMT", name: "Mumbai CSMT" },
-  { code: "HWH", name: "Howrah Jn" },
-];
-
-// Verified Direct Hero Photos + Wikipedia Search Title Mapping for All 65 Temples
 const TEMPLE_WIKI_TITLES = {
   "ap-tirumala": "Venkateswara Temple, Tirumala",
   "ap-srisailam": "Mallikarjuna Temple, Srisailam",
@@ -91,11 +80,29 @@ export default function TempleDetailDrawer({
   isVisited,
   onToggleStatus,
   userCoords,
+  onDetectLocation,
 }) {
   const [activeTab, setActiveTab] = useState("history");
   const [fromStation, setFromStation] = useState("VZM");
+  const [selectedClass, setSelectedClass] = useState("SL");
+  const [pilgrims, setPilgrims] = useState(1);
   const [photoUrl, setPhotoUrl] = useState(null);
   const [loadingPhoto, setLoadingPhoto] = useState(true);
+
+  // Auto-select nearest railway station if user shares live GPS
+  useEffect(() => {
+    if (!userCoords) return;
+    let nearest = INDIAN_STATIONS[0];
+    let minDist = Infinity;
+    INDIAN_STATIONS.forEach((st) => {
+      const d = Math.hypot(st.lat - userCoords.lat, st.lng - userCoords.lng);
+      if (d < minDist) {
+        minDist = d;
+        nearest = st;
+      }
+    });
+    setFromStation(nearest.code);
+  }, [userCoords]);
 
   useEffect(() => {
     if (!temple) return;
@@ -127,7 +134,11 @@ export default function TempleDetailDrawer({
 
   if (!temple) return null;
 
+  const trainData = getTrainOptionsAndFares(fromStation, temple);
   const destCode = temple.travel.nearest_railway_code;
+  const roundTripTrainCost = trainData.baseFares[selectedClass] * 2 * pilgrims;
+  const localFoodAndAutoCost = 550 * pilgrims;
+  const totalBudgetEstimate = roundTripTrainCost + localFoodAndAutoCost;
 
   const googleRouteUrl = userCoords
     ? `https://www.google.com/maps/dir/?api=1&origin=${userCoords.lat},${userCoords.lng}&destination=${temple.latitude},${temple.longitude}`
@@ -154,7 +165,6 @@ export default function TempleDetailDrawer({
           </div>
         )}
 
-        {/* Gradient Overlay + Title */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0e1525] via-[#0e1525]/35 to-transparent" />
 
         <div className="absolute bottom-3 left-5 right-5 flex flex-wrap items-end justify-between gap-3">
@@ -181,7 +191,7 @@ export default function TempleDetailDrawer({
 
       {/* Body Content */}
       <div className="p-5 sm:p-6 space-y-5">
-        {/* Action Bar: Wishlist, Visited & Live Route */}
+        {/* Action Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
           <p className="text-xs text-slate-400">
             Deity: <span className="text-slate-200 font-bold">{temple.deity}</span>
@@ -245,7 +255,7 @@ export default function TempleDetailDrawer({
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <Train className="w-3.5 h-3.5" /> Trains & Route
+            <Train className="w-3.5 h-3.5" /> Trains & Fares
           </button>
 
           <button
@@ -293,40 +303,42 @@ export default function TempleDetailDrawer({
           </div>
         )}
 
-        {/* TAB 2: From -> To Train Search & Route */}
+        {/* TAB 2: In-App Trains, Timings, Ticket Rates & Yatra Cost */}
         {activeTab === "reach" && (
           <div className="space-y-4 text-xs">
+            {/* Station Selector Box */}
             <div className="bg-slate-900/90 border border-sky-500/30 rounded-xl p-4 space-y-3">
-              <span className="text-sky-400 font-bold flex items-center gap-1.5 text-sm">
-                <Train className="w-4 h-4" /> Direct Train Route Finder
-              </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sky-400 font-bold flex items-center gap-1.5 text-sm">
+                  <Train className="w-4 h-4" /> Trains & IRCTC Fare Check ({trainData.distanceKm} km)
+                </span>
 
+                <button
+                  onClick={onDetectLocation}
+                  className="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <LocateFixed className="w-3 h-3" />
+                  {userCoords ? `Nearest: ${fromStation} ✓` : "Detect My Station"}
+                </button>
+              </div>
+
+              {/* From -> To Bar */}
               <div className="grid grid-cols-1 sm:grid-cols-11 items-center gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <div className="sm:col-span-5">
                   <label className="text-[10px] uppercase text-slate-400 font-bold block mb-1">
-                    From Station (Code)
+                    From Your Station
                   </label>
-                  <div className="flex gap-1.5">
-                    <input
-                      type="text"
-                      value={fromStation}
-                      onChange={(e) => setFromStation(e.target.value.toUpperCase())}
-                      placeholder="VZM"
-                      maxLength={5}
-                      className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-amber-400 uppercase focus:outline-none focus:border-sky-400"
-                    />
-                    <select
-                      value={fromStation}
-                      onChange={(e) => setFromStation(e.target.value)}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
-                    >
-                      {POPULAR_ORIGINS.map((st) => (
-                        <option key={st.code} value={st.code}>
-                          {st.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <select
+                    value={fromStation}
+                    onChange={(e) => setFromStation(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs font-bold text-amber-400 focus:outline-none focus:border-sky-400"
+                  >
+                    {INDIAN_STATIONS.map((st) => (
+                      <option key={st.code} value={st.code}>
+                        {st.code} — {st.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="sm:col-span-1 flex justify-center pt-3">
@@ -335,49 +347,118 @@ export default function TempleDetailDrawer({
 
                 <div className="sm:col-span-5">
                   <label className="text-[10px] uppercase text-slate-400 font-bold block mb-1">
-                    To Temple Station
+                    Temple Destination Station
                   </label>
-                  <div className="bg-slate-900 border border-sky-500/30 rounded-lg px-3 py-1.5">
-                    <span className="font-extrabold text-sky-400">{destCode}</span>
-                    <span className="text-slate-300 ml-1.5 line-clamp-1 inline">
-                      ({temple.travel.nearest_railway_name.split("(")[0].trim()})
+                  <div className="bg-slate-900 border border-sky-500/30 rounded-lg px-3 py-2 font-bold">
+                    <span className="text-sky-400">{destCode}</span>
+                    <span className="text-slate-300 ml-1.5">
+                      — {temple.travel.nearest_railway_name.split("(")[0].trim()}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href={`https://www.confirmtkt.com/trains/${fromStation}-to-${destCode}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold flex items-center justify-center gap-1.5 transition"
-                >
-                  View Trains ({fromStation} → {destCode}) <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-                <a
-                  href="https://www.irctc.co.in/nget/train-search"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold flex items-center gap-1.5 transition"
-                >
-                  IRCTC Official <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+              {/* In-App Train List with Class Fares */}
+              <div className="space-y-2.5">
+                {trainData.trains.map((tr) => (
+                  <div
+                    key={tr.trainNo}
+                    className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 mr-2">
+                          #{tr.trainNo}
+                        </span>
+                        <span className="font-bold text-slate-100">{tr.name}</span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        {tr.dep} → {tr.arr} ({tr.duration})
+                      </span>
+                    </div>
+
+                    {/* Class Fare Pills (2S, SL, 3A, 2A) */}
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {Object.entries(tr.fares).map(([cls, price]) => (
+                        <button
+                          key={cls}
+                          onClick={() => setSelectedClass(cls)}
+                          className={`p-2 rounded-lg border text-left transition cursor-pointer ${
+                            selectedClass === cls
+                              ? "bg-amber-500/15 border-amber-500"
+                              : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                          }`}
+                        >
+                          <span className="block text-[10px] font-bold text-slate-400">
+                            {cls} Class
+                          </span>
+                          <span className="text-xs font-extrabold text-emerald-400">
+                            ₹{price}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
+
+              {/* Total Cost-Effective Yatra Budget Summary */}
+              <div className="bg-gradient-to-r from-amber-500/15 to-orange-500/10 border border-amber-500/30 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <span className="text-amber-400 font-bold flex items-center gap-1">
+                    <Wallet className="w-3.5 h-3.5" /> Total Round-Trip Yatra Estimate ({selectedClass} Class)
+                  </span>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Up & Down Train (₹{roundTripTrainCost}) + Local Auto & Annadanam/Food (₹{localFoodAndAutoCost})
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <select
+                    value={pilgrims}
+                    onChange={(e) => setPilgrims(Number(e.target.value))}
+                    className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-200"
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((p) => (
+                      <option key={p} value={p}>
+                        {p} {p === 1 ? "Person" : "People"}
+                      </option>
+                    ))}
+                  </select>
+
+                  <span className="text-base font-extrabold text-amber-300 flex items-center">
+                    <IndianRupee className="w-4 h-4" />
+                    {totalBudgetEstimate.toLocaleString("en-IN")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Optional IRCTC Booking Redirect */}
+              <a
+                href="https://www.irctc.co.in/nget/train-search"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-2.5 px-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold flex items-center justify-center gap-1.5 transition"
+              >
+                Ready to Book? Open IRCTC Portal <ExternalLink className="w-3.5 h-3.5" />
+              </a>
             </div>
 
-            <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 space-y-1">
-              <span className="text-amber-400 font-bold flex items-center gap-1.5">
-                <Plane className="w-4 h-4" /> Nearest Airport
-              </span>
-              <p className="text-slate-200">{temple.travel.nearest_airport}</p>
-            </div>
+            {/* Airport & Local Bus Info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 space-y-1">
+                <span className="text-amber-400 font-bold flex items-center gap-1.5">
+                  <Plane className="w-4 h-4" /> Nearest Airport
+                </span>
+                <p className="text-slate-200">{temple.travel.nearest_airport}</p>
+              </div>
 
-            <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 space-y-1">
-              <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                <Bus className="w-4 h-4" /> Local Bus & Last-Mile Connectivity
-              </span>
-              <p className="text-slate-200 leading-relaxed">{temple.travel.bus_connectivity}</p>
+              <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 space-y-1">
+                <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                  <Bus className="w-4 h-4" /> Local Bus & Auto Tips
+                </span>
+                <p className="text-slate-200 leading-relaxed">{temple.travel.bus_connectivity}</p>
+              </div>
             </div>
           </div>
         )}
