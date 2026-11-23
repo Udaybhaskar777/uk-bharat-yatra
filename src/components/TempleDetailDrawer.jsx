@@ -6,7 +6,9 @@ import {
 } from "lucide-react";
 import { INDIAN_STATIONS, getTrainOptionsAndFares } from "../utils/trainFareEngine";
 
+// Exact Wikipedia Page Titles for All Temples & All 51 Shakti Peethas
 const TEMPLE_WIKI_TITLES = {
+  // Core Temples
   "ap-tirumala": "Venkateswara Temple, Tirumala",
   "ap-srisailam": "Mallikarjuna Temple, Srisailam",
   "ap-vijayawada": "Kanaka Durga Temple",
@@ -72,7 +74,109 @@ const TEMPLE_WIKI_TITLES = {
   "wb-kalighat": "Kalighat Kali Temple",
   "as-kamakhya": "Kamakhya Temple",
   "tr-tripurasundari": "Tripura Sundari Temple",
+
+  // All 51 Shakti Peethas Exact Wikipedia Titles
+  "sp-kamakhya": "Kamakhya Temple",
+  "sp-kalighat": "Kalighat Kali Temple",
+  "sp-vimala": "Vimala Temple",
+  "sp-taratarini": "Tara Tarini Temple",
+  "sp-shankari": "Koneswaram temple",
+  "sp-kamakshi": "Kamakshi Amman Temple",
+  "sp-shrinkhala": "Pandua, Hooghly",
+  "sp-chamundeshwari": "Chamundeshwari Temple",
+  "sp-jogulamba": "Jogulamba Devi Temple",
+  "sp-bhramarambika": "Mallikarjuna Temple, Srisailam",
+  "sp-kolhapur": "Mahalakshmi Temple, Kolhapur",
+  "sp-mahur": "Mahur, Maharashtra",
+  "sp-harsiddhi": "Harsiddhi Temple",
+  "sp-puruhutika": "Kukkuteswara Swamy Temple",
+  "sp-biraja": "Biraja Temple",
+  "sp-manikyamba": "Draksharamam",
+  "sp-alopi": "Alopi Devi Mandir",
+  "sp-jwalamukhi": "Jwalamukhi Temple",
+  "sp-manglagauri": "Mangla Gauri Temple",
+  "sp-vishalakshi": "Vishalakshi Temple",
+  "sp-sharadapeeth": "Sharada Peeth",
+  "sp-amarnath": "Amarnath Temple",
+  "sp-bajreshwari": "Vajreshwari Temple, Kangra",
+  "sp-nainadevi": "Naina Devi Temple",
+  "sp-chintpurni": "Chintpurni",
+  "sp-katyayani": "Katyayani Peeth",
+  "sp-chitrakoot": "Chitrakoot, Madhya Pradesh",
+  "sp-amarkantak": "Amarkantak",
+  "sp-danteshwari": "Danteshwari Temple",
+  "sp-kurukshetra": "Bhadrakali Temple, Kurukshetra",
+  "sp-ambaji": "Ambaji Temple",
+  "sp-chandrabhaga": "Somnath temple",
+  "sp-pavagadh": "Kalika Mata Temple, Pavagadh",
+  "sp-saptashrungi": "Saptashrungi",
+  "sp-manibandh": "Pushkar",
+  "sp-virat": "Viratnagar",
+  "sp-tripurasundari": "Tripura Sundari Temple",
+  "sp-jayanti": "Nartiang Durga Temple",
+  "sp-kankalitala": "Kankalitala",
+  "sp-bakreshwar": "Bakreshwar",
+  "sp-attahas": "Attahas",
+  "sp-nandikeshwari": "Nandikeshwari Temple",
+  "sp-nalhati": "Nalateshwari Temple",
+  "sp-tarapith": "Tarapith",
+  "sp-bahula": "Ketugram",
+  "sp-ujaani": "Kogram",
+  "sp-kiriteswari": "Kiriteswari Temple",
+  "sp-vibhash": "Bargabhima Temple",
+  "sp-trisrota": "Jalpaiguri",
+  "sp-ratnavali": "Khanakul",
+  "sp-baidyanath": "Baidyanath Temple",
+  "sp-mithila": "Janakpur",
+  "sp-godavaritir": "Rajahmundry",
+  "sp-kanyakumari": "Kumari Amman Temple",
+  "sp-suchindram": "Thanumalayan Temple",
+  "sp-hinglaj": "Hinglaj Mata Mandir",
+  "sp-guhyeshwari": "Guhyeshwari Temple",
+  "sp-gandaki": "Muktinath",
+  "sp-manasa": "Lake Manasarovar",
+  "sp-sugandha": "Sugandha Shaktipeeth",
+  "sp-karatoatat": "Bhabanipur Shaktipeeth",
+  "sp-chattal": "Chandranath Temple",
+  "sp-jeshoreshwari": "Jeshoreshwari Kali Temple",
+  "sp-shrihatta": "Shree Shail",
 };
+
+async function fetchTemplePhoto(temple) {
+  const wikiTitle = TEMPLE_WIKI_TITLES[temple.id] || temple.name;
+
+  // 1. Try Direct Wikipedia REST Summary API
+  try {
+    const res = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiTitle)}`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const img = data?.originalimage?.source || data?.thumbnail?.source;
+      if (img) return img;
+    }
+  } catch (_) {}
+
+  // 2. Fallback: Search Wikipedia by Temple Name + City for Page Thumbnail
+  try {
+    const query = `${temple.name.split("(")[0].trim()} ${temple.city}`;
+    const searchRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
+        query
+      )}&gsrlimit=1&prop=pageimages&pithumbsize=960&format=json&origin=*`
+    );
+    if (searchRes.ok) {
+      const searchData = await searchRes.json();
+      const pages = searchData?.query?.pages;
+      if (pages) {
+        const firstPage = Object.values(pages)[0];
+        if (firstPage?.thumbnail?.source) return firstPage.thumbnail.source;
+      }
+    }
+  } catch (_) {}
+
+  return null;
+}
 
 export default function TempleDetailDrawer({
   temple,
@@ -89,7 +193,6 @@ export default function TempleDetailDrawer({
   const [photoUrl, setPhotoUrl] = useState(null);
   const [loadingPhoto, setLoadingPhoto] = useState(true);
 
-  // Auto-select nearest railway station if user shares live GPS
   useEffect(() => {
     if (!userCoords) return;
     let nearest = INDIAN_STATIONS[0];
@@ -110,22 +213,11 @@ export default function TempleDetailDrawer({
     setLoadingPhoto(true);
     setPhotoUrl(null);
 
-    const wikiTitle = TEMPLE_WIKI_TITLES[temple.id] || temple.name;
-    const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
-      wikiTitle
-    )}`;
-
-    fetch(apiUrl)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!isMounted) return;
-        const img = data?.originalimage?.source || data?.thumbnail?.source || null;
-        setPhotoUrl(img);
-        setLoadingPhoto(false);
-      })
-      .catch(() => {
-        if (isMounted) setLoadingPhoto(false);
-      });
+    fetchTemplePhoto(temple).then((img) => {
+      if (!isMounted) return;
+      setPhotoUrl(img);
+      setLoadingPhoto(false);
+    });
 
     return () => {
       isMounted = false;
@@ -313,7 +405,6 @@ export default function TempleDetailDrawer({
         {/* TAB 2: In-App Trains, Timings, Ticket Rates & Yatra Cost */}
         {activeTab === "reach" && (
           <div className="space-y-4 text-xs">
-            {/* Station Selector Box */}
             <div className="bg-slate-900/90 border border-sky-500/30 rounded-xl p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sky-400 font-bold flex items-center gap-1.5 text-sm">
@@ -329,7 +420,6 @@ export default function TempleDetailDrawer({
                 </button>
               </div>
 
-              {/* From -> To Bar */}
               <div className="grid grid-cols-1 sm:grid-cols-11 items-center gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <div className="sm:col-span-5">
                   <label className="text-[10px] uppercase text-slate-400 font-bold block mb-1">
@@ -365,7 +455,6 @@ export default function TempleDetailDrawer({
                 </div>
               </div>
 
-              {/* In-App Train List with Class Fares */}
               <div className="space-y-2.5">
                 {trainData.trains.map((tr) => (
                   <div
@@ -384,7 +473,6 @@ export default function TempleDetailDrawer({
                       </span>
                     </div>
 
-                    {/* Class Fare Pills (2S, SL, 3A, 2A) */}
                     <div className="grid grid-cols-4 gap-1.5">
                       {Object.entries(tr.fares).map(([cls, price]) => (
                         <button
@@ -409,7 +497,6 @@ export default function TempleDetailDrawer({
                 ))}
               </div>
 
-              {/* Total Cost-Effective Yatra Budget Summary */}
               <div className="bg-gradient-to-r from-amber-500/15 to-orange-500/10 border border-amber-500/30 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <span className="text-amber-400 font-bold flex items-center gap-1">
@@ -440,7 +527,6 @@ export default function TempleDetailDrawer({
                 </div>
               </div>
 
-              {/* Optional IRCTC Booking Redirect */}
               <a
                 href="https://www.irctc.co.in/nget/train-search"
                 target="_blank"
@@ -451,7 +537,6 @@ export default function TempleDetailDrawer({
               </a>
             </div>
 
-            {/* Airport & Local Bus Info */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 space-y-1">
                 <span className="text-amber-400 font-bold flex items-center gap-1.5">
