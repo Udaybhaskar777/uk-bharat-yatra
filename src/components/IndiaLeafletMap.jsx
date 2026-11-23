@@ -5,11 +5,12 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 const createTempleIcon = (isSelected, isVisited, circuit) => {
-  let color = "#f97316"; // Deep Saffron
+  let color = "#f97316"; // Iconic Orange
   if (isSelected) color = "#facc15"; // Bright Gold
   else if (isVisited) color = "#10b981"; // Emerald
   else if (circuit.includes("Jyotirlinga")) color = "#ef4444"; // Crimson
   else if (circuit.includes("Char Dham")) color = "#0284c7"; // Sky Blue
+  else if (circuit.includes("51 Shakti Peethas")) color = "#ec4899"; // Shakti Magenta
 
   const size = isSelected ? 22 : 14;
 

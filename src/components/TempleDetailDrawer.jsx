@@ -193,9 +193,16 @@ export default function TempleDetailDrawer({
       <div className="p-5 sm:p-6 space-y-5">
         {/* Action Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
-          <p className="text-xs text-slate-400">
-            Deity: <span className="text-slate-200 font-bold">{temple.deity}</span>
-          </p>
+          <div className="space-y-0.5">
+            <p className="text-xs text-slate-400">
+              Deity: <span className="text-slate-200 font-bold">{temple.deity}</span>
+            </p>
+            {temple.fallen_part && (
+              <p className="text-xs text-pink-400 font-semibold">
+                Sacred Relic / Body Part: <span className="text-pink-200">{temple.fallen_part}</span>
+              </p>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <a

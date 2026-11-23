@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Compass, Search, Heart, UserCheck, ChevronDown, MapPin, CheckCircle2 } from "lucide-react";
 import { INDIA_TEMPLES_SEED } from "./data/indiaTemplesSeed";
+import { SHAKTI_PEETHAS_51 } from "./data/shaktiPeethas51";
 import IndiaLeafletMap from "./components/IndiaLeafletMap";
 import TempleDetailDrawer from "./components/TempleDetailDrawer";
 import AuthOtpModal from "./components/AuthOtpModal";
@@ -9,19 +10,48 @@ import { supabase } from "./lib/supabaseClient";
 
 const CIRCUITS = [
   "All",
+  "51 Shakti Peethas",
+  "4 Adi Peethas",
+  "18 Maha Peethas",
   "Jyotirlinga",
   "Char Dham",
-  "Shakti Peetha",
   "UNESCO",
   "South India",
   "North India & Himalayas",
   "West & Central India",
   "East & North-East India",
+  "Subcontinent (Outside India)",
 ];
 
 export default function App() {
-  const [temples] = useState(INDIA_TEMPLES_SEED);
-  const [selectedTemple, setSelectedTemple] = useState(INDIA_TEMPLES_SEED[0]);
+  // Merge Base 65 Temples + Complete 51 Shakti Peethas cleanly without duplicates
+  const temples = useMemo(() => {
+    const map = new Map();
+    INDIA_TEMPLES_SEED.forEach((t) => {
+      const key = `${t.city.toLowerCase()}-${t.deity.toLowerCase().slice(0, 6)}`;
+      map.set(t.id, t);
+    });
+
+    // Replace overlapping temples with enriched Shakti Peetha entries & append new ones
+    const overlapMap = {
+      "as-kamakhya": "sp-kamakhya",
+      "wb-kalighat": "sp-kalighat",
+      "ka-chamundeshwari": "sp-chamundeshwari",
+      "ap-srisailam": "sp-bhramarambika",
+      "hp-jwalaji": "sp-jwalamukhi",
+      "gj-ambaji": "sp-ambaji",
+      "tr-tripurasundari": "sp-tripurasundari",
+      "jh-baidyanath": "sp-baidyanath",
+      "jk-amarnath": "sp-amarnath",
+    };
+
+    Object.keys(overlapMap).forEach((oldId) => map.delete(oldId));
+    SHAKTI_PEETHAS_51.forEach((sp) => map.set(sp.id, sp));
+
+    return Array.from(map.values());
+  }, []);
+
+  const [selectedTemple, setSelectedTemple] = useState(temples[0]);
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedState, setExpandedState] = useState("Andhra Pradesh");
@@ -34,7 +64,7 @@ export default function App() {
 
   const [wishlistIds, setWishlistIds] = useState(() => {
     const saved = localStorage.getItem("uk_yatra_wishlist");
-    return saved ? JSON.parse(saved) : ["ap-tirumala", "uk-kedarnath"];
+    return saved ? JSON.parse(saved) : ["ap-tirumala", "sp-kamakhya"];
   });
 
   const [visitedIds, setVisitedIds] = useState(() => {
@@ -106,7 +136,8 @@ export default function App() {
       t.name.toLowerCase().includes(q) ||
       t.state.toLowerCase().includes(q) ||
       t.city.toLowerCase().includes(q) ||
-      t.deity.toLowerCase().includes(q);
+      t.deity.toLowerCase().includes(q) ||
+      (t.fallen_part && t.fallen_part.toLowerCase().includes(q));
 
     return matchesFilter && matchesSearch;
   });
@@ -143,7 +174,7 @@ export default function App() {
                 </h1>
               </div>
               <p className="text-xs text-slate-400">
-                {temples.length} Historic Temples • Char Dham • 12 Jyotirlingas • Shakti Peethas
+                {temples.length} Historic Temples • All 51 Shakti Peethas • 12 Jyotirlingas • Char Dham
               </p>
             </div>
           </div>
@@ -155,7 +186,7 @@ export default function App() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search temple, state, deity..."
+                placeholder="Search temple, state, body part..."
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-amber-500"
               />
             </div>
@@ -220,10 +251,10 @@ export default function App() {
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
             <div className="flex items-center justify-between px-1">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Explore by State ({stateNames.length} States)
+                Explore by State / Region ({stateNames.length} Regions)
               </span>
               <span className="text-[11px] text-amber-400">
-                Click state to view temples
+                Showing {filteredTemples.length} shrines
               </span>
             </div>
 
@@ -248,7 +279,7 @@ export default function App() {
                         {stateName}
                       </span>
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold">
-                        {stateTemples.length} {stateTemples.length === 1 ? "Temple" : "Temples"}
+                        {stateTemples.length} {stateTemples.length === 1 ? "Shrine" : "Shrines"}
                       </span>
                     </div>
 
@@ -279,7 +310,9 @@ export default function App() {
                               <p className="text-xs font-bold text-slate-100 line-clamp-1">
                                 {t.name}
                               </p>
-                              <p className="text-[11px] text-slate-400">{t.city}</p>
+                              <p className="text-[11px] text-slate-400">
+                                {t.city} {t.fallen_part ? `• ${t.fallen_part}` : ""}
+                              </p>
                             </div>
                             {isVisited && (
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
