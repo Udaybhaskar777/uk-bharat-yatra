@@ -2,11 +2,11 @@ import React, { useState, useEffect } from "react";
 import {
   MapPin, Landmark, Train, BedDouble, Heart, CheckCircle2,
   Clock, ShieldCheck, Plane, Bus, ExternalLink, Sparkles, ArrowRight,
-  Navigation, IndianRupee, LocateFixed, Wallet
+  Navigation, IndianRupee, LocateFixed, Wallet, Calendar
 } from "lucide-react";
 import { INDIAN_STATIONS, getTrainOptionsAndFares } from "../utils/trainFareEngine";
 
-// Exact Wikipedia Page Titles for All Temples & All 51 Shakti Peethas
+// Exact Wikipedia Page Titles for Temples, 51 Shakti Peethas & Tourism Places
 const TEMPLE_WIKI_TITLES = {
   // Core Temples
   "ap-tirumala": "Venkateswara Temple, Tirumala",
@@ -75,7 +75,7 @@ const TEMPLE_WIKI_TITLES = {
   "as-kamakhya": "Kamakhya Temple",
   "tr-tripurasundari": "Tripura Sundari Temple",
 
-  // All 51 Shakti Peethas Exact Wikipedia Titles
+  // All 51 Shakti Peethas
   "sp-kamakhya": "Kamakhya Temple",
   "sp-kalighat": "Kalighat Kali Temple",
   "sp-vimala": "Vimala Temple",
@@ -140,12 +140,61 @@ const TEMPLE_WIKI_TITLES = {
   "sp-chattal": "Chandranath Temple",
   "sp-jeshoreshwari": "Jeshoreshwari Kali Temple",
   "sp-shrihatta": "Shree Shail",
+
+  // Tourism Destinations
+  "tour-ap-araku": "Araku Valley",
+  "tour-ap-vizag": "INS Kursura (S20)",
+  "tour-ap-gandikota": "Gandikota",
+  "tour-ap-lambasingi": "Lambasingi",
+  "tour-tg-hyderabad": "Charminar",
+  "tour-tg-bogatha": "Bogatha Waterfall",
+  "tour-tn-ooty": "Ooty",
+  "tour-tn-kodaikanal": "Kodaikanal",
+  "tour-tn-mahabalipuram": "Shore Temple",
+  "tour-ka-coorg": "Kodagu",
+  "tour-ka-gokarna": "Gokarna, Karnataka",
+  "tour-kl-munnar": "Munnar",
+  "tour-kl-alleppey": "Alappuzha",
+  "tour-py-puducherry": "Puducherry",
+  "tour-ld-lakshadweep": "Lakshadweep",
+  "tour-an-andaman": "Radhanagar Beach",
+  "tour-hp-manali": "Manali, Himachal Pradesh",
+  "tour-hp-spiti": "Key Monastery",
+  "tour-hp-shimla": "Shimla",
+  "tour-uk-rishikesh": "Rishikesh",
+  "tour-uk-nainital": "Nainital",
+  "tour-jk-kashmir": "Dal Lake",
+  "tour-la-ladakh": "Pangong Tso",
+  "tour-rj-jaipur": "Hawa Mahal",
+  "tour-rj-udaipur": "Lake Pichola",
+  "tour-up-tajmahal": "Taj Mahal",
+  "tour-pb-amritsar": "Attari–Wagah border ceremony",
+  "tour-hr-morni": "Morni",
+  "tour-dl-delhi": "Red Fort",
+  "tour-ch-chandigarh": "Rock Garden of Chandigarh",
+  "tour-mh-mumbai-ellora": "Ellora Caves",
+  "tour-ga-goa": "Dudhsagar Falls",
+  "tour-gj-kutch-unity": "Statue of Unity",
+  "tour-mp-khajuraho-bandhavgarh": "Bandhavgarh National Park",
+  "tour-cg-chitrakote": "Chitrakote Falls",
+  "tour-dd-diu": "Diu Fort",
+  "tour-od-chilika": "Chilika Lake",
+  "tour-wb-darjeeling": "Darjeeling",
+  "tour-br-rajgir": "Nalanda mahavihara",
+  "tour-jh-ranchi": "Hundru Falls",
+  "tour-sk-sikkim": "Lake Tsomgo",
+  "tour-as-kaziranga": "Kaziranga National Park",
+  "tour-ml-meghalaya": "Nohkalikai Falls",
+  "tour-ar-tawang": "Tawang Monastery",
+  "tour-nl-kohima": "Dzüko Valley",
+  "tour-mn-loktak": "Loktak Lake",
+  "tour-mz-aizawl": "Vantawng Falls",
+  "tour-tr-neermahal": "Neermahal",
 };
 
 async function fetchTemplePhoto(temple) {
   const wikiTitle = TEMPLE_WIKI_TITLES[temple.id] || temple.name;
 
-  // 1. Try Direct Wikipedia REST Summary API
   try {
     const res = await fetch(
       `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiTitle)}`
@@ -157,7 +206,6 @@ async function fetchTemplePhoto(temple) {
     }
   } catch (_) {}
 
-  // 2. Fallback: Search Wikipedia by Temple Name + City for Page Thumbnail
   try {
     const query = `${temple.name.split("(")[0].trim()} ${temple.city}`;
     const searchRes = await fetch(
@@ -185,13 +233,22 @@ export default function TempleDetailDrawer({
   onToggleStatus,
   userCoords,
   onDetectLocation,
+  defaultStation,
+  comboPlaces = [],
+  onSelectComboPlace,
 }) {
   const [activeTab, setActiveTab] = useState("history");
-  const [fromStation, setFromStation] = useState("VZM");
+  const [fromStation, setFromStation] = useState(defaultStation || "VZM");
   const [selectedClass, setSelectedClass] = useState("SL");
   const [pilgrims, setPilgrims] = useState(1);
   const [photoUrl, setPhotoUrl] = useState(null);
   const [loadingPhoto, setLoadingPhoto] = useState(true);
+
+  useEffect(() => {
+    if (defaultStation && !userCoords) {
+      setFromStation(defaultStation);
+    }
+  }, [defaultStation, userCoords]);
 
   useEffect(() => {
     if (!userCoords) return;
@@ -226,6 +283,7 @@ export default function TempleDetailDrawer({
 
   if (!temple) return null;
 
+  const isTourism = temple.place_type === "tourism";
   const trainData = getTrainOptionsAndFares(fromStation, temple);
   const destCode = temple.travel.nearest_railway_code;
   const roundTripTrainCost = trainData.baseFares[selectedClass] * 2 * pilgrims;
@@ -238,7 +296,7 @@ export default function TempleDetailDrawer({
 
   return (
     <div className="bg-[#0e1525] border border-amber-500/20 rounded-2xl overflow-hidden flex flex-col shadow-xl">
-      {/* Temple Hero Photo Banner */}
+      {/* Hero Photo Banner */}
       <div className="relative h-52 sm:h-60 w-full bg-gradient-to-br from-orange-950 via-amber-900/40 to-slate-950 overflow-hidden">
         {photoUrl ? (
           <img
@@ -252,7 +310,7 @@ export default function TempleDetailDrawer({
           <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-600/20 via-orange-900/30 to-slate-950 p-4 text-center">
             <Landmark className={`w-10 h-10 text-amber-400/70 mb-2 ${loadingPhoto ? "animate-pulse" : ""}`} />
             <span className="text-xs uppercase tracking-widest text-amber-300/80 font-bold">
-              {loadingPhoto ? "Loading Sacred Darshan..." : `${temple.state} • Sacred Heritage`}
+              {loadingPhoto ? "Loading Visual Preview..." : `${temple.state} • Bharat Explorer`}
             </span>
           </div>
         )}
@@ -268,7 +326,11 @@ export default function TempleDetailDrawer({
               {temple.circuit.map((c) => (
                 <span
                   key={c}
-                  className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-500 text-slate-950"
+                  className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                    isTourism
+                      ? "bg-emerald-400 text-slate-950"
+                      : "bg-orange-500 text-slate-950"
+                  }`}
                 >
                   {c}
                 </span>
@@ -286,13 +348,31 @@ export default function TempleDetailDrawer({
         {/* Action Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
           <div className="space-y-0.5">
-            <p className="text-xs text-slate-400">
-              Deity: <span className="text-slate-200 font-bold">{temple.deity}</span>
-            </p>
-            {temple.fallen_part && (
-              <p className="text-xs text-pink-400 font-semibold">
-                Sacred Relic / Body Part: <span className="text-pink-200">{temple.fallen_part}</span>
-              </p>
+            {isTourism ? (
+              <>
+                <p className="text-xs text-emerald-400 font-bold">
+                  Category: <span className="text-slate-100">{temple.sub_category}</span> • Best Season:{" "}
+                  <span className="text-amber-300">{temple.best_season}</span>
+                </p>
+                {temple.entry_fee && (
+                  <p className="text-xs text-slate-300">
+                    Entry / Activity Cost:{" "}
+                    <span className="text-emerald-300 font-semibold">{temple.entry_fee}</span>
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-slate-400">
+                  Deity: <span className="text-slate-200 font-bold">{temple.deity}</span>
+                </p>
+                {temple.fallen_part && (
+                  <p className="text-xs text-pink-400 font-semibold">
+                    Sacred Relic / Body Part:{" "}
+                    <span className="text-pink-200">{temple.fallen_part}</span>
+                  </p>
+                )}
+              </>
             )}
           </div>
 
@@ -343,7 +423,7 @@ export default function TempleDetailDrawer({
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <Landmark className="w-3.5 h-3.5" /> History
+            <Landmark className="w-3.5 h-3.5" /> {isTourism ? "Highlights" : "History"}
           </button>
 
           <button
@@ -369,40 +449,81 @@ export default function TempleDetailDrawer({
           </button>
         </div>
 
-        {/* TAB 1: History & Darshan */}
+        {/* TAB 1: History / Highlights + Combo Trip Planner */}
         {activeTab === "history" && (
           <div className="space-y-4">
             <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 space-y-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Sthala Puranam & Heritage
+                <Sparkles className="w-3.5 h-3.5" />
+                {isTourism ? "Destination Overview & Attractions" : "Sthala Puranam & Heritage"}
               </h3>
               <p className="text-sm text-slate-200 leading-relaxed">{temple.full_history}</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5">
-                <span className="text-slate-400 block mb-1">Built / Patronized By</span>
+                <span className="text-slate-400 block mb-1">
+                  {isTourism ? "Key Highlights & Origin" : "Built / Patronized By"}
+                </span>
                 <span className="text-slate-100 font-semibold">{temple.built_by}</span>
               </div>
 
               <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5">
                 <span className="text-slate-400 flex items-center gap-1 mb-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" /> Darshan Timings
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  {isTourism ? "Visiting Hours" : "Darshan Timings"}
                 </span>
                 <span className="text-slate-100 font-semibold">{temple.timings}</span>
               </div>
 
-              <div className="sm:col-span-2 bg-slate-900/70 border border-slate-800 rounded-xl p-3.5">
+              {isTourism && temple.ideal_duration && (
+                <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5">
+                  <span className="text-slate-400 flex items-center gap-1 mb-1">
+                    <Calendar className="w-3.5 h-3.5 text-sky-400" /> Ideal Trip Duration
+                  </span>
+                  <span className="text-slate-100 font-semibold">{temple.ideal_duration}</span>
+                </div>
+              )}
+
+              <div
+                className={`${
+                  isTourism && temple.ideal_duration ? "" : "sm:col-span-2"
+                } bg-slate-900/70 border border-slate-800 rounded-xl p-3.5`}
+              >
                 <span className="text-slate-400 flex items-center gap-1 mb-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Dress Code & Etiquette
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  {isTourism ? "Recommended Attire & Gear" : "Dress Code & Etiquette"}
                 </span>
                 <span className="text-slate-100 font-semibold">{temple.dress_code}</span>
               </div>
             </div>
+
+            {/* USP: Combo Trip Planner (Temple <-> Nearby Tourism) */}
+            {comboPlaces.length > 0 && (
+              <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl p-4 space-y-2.5">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">
+                  {isTourism
+                    ? `🛕 Nearby Sacred Temples in ${temple.state}`
+                    : `🏞️ Nearby Tourism Spots in ${temple.state}`}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {comboPlaces.map((cp) => (
+                    <button
+                      key={cp.id}
+                      onClick={() => onSelectComboPlace && onSelectComboPlace(cp)}
+                      className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 hover:border-emerald-400 text-left transition cursor-pointer"
+                    >
+                      <p className="text-xs font-bold text-white line-clamp-1">{cp.name}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{cp.city}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB 2: In-App Trains, Timings, Ticket Rates & Yatra Cost */}
+        {/* TAB 2: In-App Trains, Timings, Ticket Rates & Trip Cost */}
         {activeTab === "reach" && (
           <div className="space-y-4 text-xs">
             <div className="bg-slate-900/90 border border-sky-500/30 rounded-xl p-4 space-y-3">
@@ -444,7 +565,7 @@ export default function TempleDetailDrawer({
 
                 <div className="sm:col-span-5">
                   <label className="text-[10px] uppercase text-slate-400 font-bold block mb-1">
-                    Temple Destination Station
+                    Destination Station
                   </label>
                   <div className="bg-slate-900 border border-sky-500/30 rounded-lg px-3 py-2 font-bold">
                     <span className="text-sky-400">{destCode}</span>
@@ -500,10 +621,10 @@ export default function TempleDetailDrawer({
               <div className="bg-gradient-to-r from-amber-500/15 to-orange-500/10 border border-amber-500/30 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <span className="text-amber-400 font-bold flex items-center gap-1">
-                    <Wallet className="w-3.5 h-3.5" /> Total Round-Trip Yatra Estimate ({selectedClass} Class)
+                    <Wallet className="w-3.5 h-3.5" /> Total Round-Trip Estimate ({selectedClass} Class)
                   </span>
                   <p className="text-[11px] text-slate-300 mt-0.5">
-                    Up & Down Train (₹{roundTripTrainCost}) + Local Auto & Annadanam/Food (₹{localFoodAndAutoCost})
+                    Up & Down Train (₹{roundTripTrainCost}) + Local Transit & Meals (₹{localFoodAndAutoCost})
                   </p>
                 </div>
 
@@ -547,7 +668,7 @@ export default function TempleDetailDrawer({
 
               <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 space-y-1">
                 <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                  <Bus className="w-4 h-4" /> Local Bus & Auto Tips
+                  <Bus className="w-4 h-4" /> Local Bus & Last-Mile Tips
                 </span>
                 <p className="text-slate-200 leading-relaxed">{temple.travel.bus_connectivity}</p>
               </div>
@@ -568,7 +689,7 @@ export default function TempleDetailDrawer({
               Verified Dharamshalas, Temple Trust Rooms & Budget Hostels
             </h3>
             <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-              We are verifying direct Temple Devasthanam room booking links, free pilgrim dormitories, and budget hostels near{" "}
+              We are verifying direct Temple Devasthanam rooms, pilgrim dormitories, and budget hostels near{" "}
               <span className="text-slate-200 font-semibold">{temple.name}</span>.
             </p>
           </div>

@@ -4,8 +4,8 @@ import { Navigation, Map as MapIcon, Satellite, LocateFixed } from "lucide-react
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-const createTempleIcon = (isSelected, isVisited, circuit) => {
-  let color = "#f97316"; // Iconic Orange
+const createTempleIcon = (isSelected, isVisited, circuit = [], placeType = "temple") => {
+  let color = placeType === "tourism" ? "#14b8a6" : "#f97316"; // Teal for Tourism, Saffron for Temples
   if (isSelected) color = "#facc15"; // Bright Gold
   else if (isVisited) color = "#10b981"; // Emerald
   else if (circuit.includes("Jyotirlinga")) color = "#ef4444"; // Crimson
@@ -62,7 +62,6 @@ export default function IndiaLeafletMap({
   onDetectLocation,
   locating,
 }) {
-  // ROAD = Google Maps Road View | HYBRID = Google Satellite + Labels
   const [mapStyle, setMapStyle] = useState("ROAD");
 
   const distanceKm =
@@ -83,6 +82,8 @@ export default function IndiaLeafletMap({
     mapStyle === "ROAD"
       ? "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
       : "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}";
+
+  const isTourismMode = selectedTemple?.place_type === "tourism";
 
   return (
     <div className="space-y-2.5">
@@ -133,7 +134,7 @@ export default function IndiaLeafletMap({
         </div>
       </div>
 
-      {/* Interactive Google Map with ALL 65 Temple Pins */}
+      {/* Interactive Google Map with All Pins */}
       <div className="relative w-full h-[410px] lg:h-[470px] rounded-2xl overflow-hidden border border-amber-500/25 shadow-2xl bg-[#0b101d]">
         <MapContainer
           center={[22.5, 79.5]}
@@ -150,7 +151,7 @@ export default function IndiaLeafletMap({
 
           <FlyToTemple temple={selectedTemple} />
 
-          {/* User Live GPS Location Pin + Route Line to Selected Temple */}
+          {/* User Live GPS Location Pin + Route Line */}
           {userCoords && (
             <>
               <Marker
@@ -183,7 +184,7 @@ export default function IndiaLeafletMap({
             </>
           )}
 
-          {/* All Filtered Temple Pins on Google Map */}
+          {/* All Filtered Temple & Tourism Pins */}
           {temples.map((temple) => {
             const isSelected = selectedTemple?.id === temple.id;
             const isVisited = visitedIds.includes(temple.id);
@@ -192,7 +193,12 @@ export default function IndiaLeafletMap({
               <Marker
                 key={temple.id}
                 position={[temple.latitude, temple.longitude]}
-                icon={createTempleIcon(isSelected, isVisited, temple.circuit)}
+                icon={createTempleIcon(
+                  isSelected,
+                  isVisited,
+                  temple.circuit,
+                  temple.place_type
+                )}
                 eventHandlers={{
                   click: () => onSelectTemple(temple),
                 }}
@@ -210,20 +216,39 @@ export default function IndiaLeafletMap({
           })}
         </MapContainer>
 
-        {/* Legend */}
+        {/* Dynamic Legend */}
         <div className="absolute bottom-3 left-3 z-[400] bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-2 text-[11px] flex flex-wrap gap-3 text-slate-200">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Jyotirlinga
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Char Dham
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block" /> Shakti / Iconic
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Visited
-          </span>
+          {isTourismMode ? (
+            <>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-teal-400 inline-block" /> Tourism Spot
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" /> Selected
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Visited
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Jyotirlinga
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-pink-500 inline-block" /> Shakti Peetha
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" /> Char Dham
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block" /> Iconic
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Visited
+              </span>
+            </>
+          )}
         </div>
       </div>
     </div>

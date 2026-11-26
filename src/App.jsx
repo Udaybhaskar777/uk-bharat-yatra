@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Compass, Search, Heart, UserCheck, ChevronDown, MapPin, CheckCircle2 } from "lucide-react";
+import {
+  Compass, Search, Heart, UserCheck, ChevronDown, MapPin,
+  CheckCircle2, User, Landmark, Mountain
+} from "lucide-react";
 import { INDIA_TEMPLES_SEED } from "./data/indiaTemplesSeed";
 import { SHAKTI_PEETHAS_51 } from "./data/shaktiPeethas51";
+import { INDIA_TOURISM_SEED } from "./data/indiaTourismSeed";
 import IndiaLeafletMap from "./components/IndiaLeafletMap";
 import TempleDetailDrawer from "./components/TempleDetailDrawer";
 import AuthOtpModal from "./components/AuthOtpModal";
 import YatraDashboardModal from "./components/YatraDashboardModal";
 import { supabase } from "./lib/supabaseClient";
 
-const CIRCUITS = [
+const TEMPLE_FILTERS = [
   "All",
   "51 Shakti Peethas",
   "4 Adi Peethas",
@@ -23,16 +27,28 @@ const CIRCUITS = [
   "Subcontinent (Outside India)",
 ];
 
-export default function App() {
-  // Merge Base 65 Temples + Complete 51 Shakti Peethas cleanly without duplicates
-  const temples = useMemo(() => {
-    const map = new Map();
-    INDIA_TEMPLES_SEED.forEach((t) => {
-      const key = `${t.city.toLowerCase()}-${t.deity.toLowerCase().slice(0, 6)}`;
-      map.set(t.id, t);
-    });
+const TOURISM_FILTERS = [
+  "All",
+  "Hill Station",
+  "Beach",
+  "Heritage & Forts",
+  "Wildlife & National Park",
+  "Waterfalls",
+  "Valley & Adventure",
+  "Islands",
+  "UNESCO",
+  "South India",
+  "North India & Himalayas",
+  "West & Central India",
+  "East & North-East India",
+];
 
-    // Replace overlapping temples with enriched Shakti Peetha entries & append new ones
+export default function App() {
+  // Unified Master Directory: 120 Temples + 28 States & 8 UTs Tourism Spots
+  const allPlaces = useMemo(() => {
+    const map = new Map();
+    INDIA_TEMPLES_SEED.forEach((t) => map.set(t.id, { ...t, place_type: "temple" }));
+
     const overlapMap = {
       "as-kamakhya": "sp-kamakhya",
       "wb-kalighat": "sp-kalighat",
@@ -46,25 +62,39 @@ export default function App() {
     };
 
     Object.keys(overlapMap).forEach((oldId) => map.delete(oldId));
-    SHAKTI_PEETHAS_51.forEach((sp) => map.set(sp.id, sp));
+    SHAKTI_PEETHAS_51.forEach((sp) => map.set(sp.id, { ...sp, place_type: "temple" }));
+    INDIA_TOURISM_SEED.forEach((tour) => map.set(tour.id, tour));
 
     return Array.from(map.values());
   }, []);
 
-  const [selectedTemple, setSelectedTemple] = useState(temples[0]);
+  // Mode Switcher: 'temple' | 'tourism'
+  const [placeMode, setPlaceMode] = useState("temple");
+  const [selectedPlace, setSelectedPlace] = useState(allPlaces[0]);
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedState, setExpandedState] = useState("Andhra Pradesh");
   const [userCoords, setUserCoords] = useState(null);
   const [locating, setLocating] = useState(false);
 
-  const [userEmail, setUserEmail] = useState(() => localStorage.getItem("uk_yatra_email") || "");
+  const [user, setUser] = useState(() => {
+    const email = localStorage.getItem("uk_yatra_email");
+    return email ? { id: "local", email } : null;
+  });
+
+  const [profile, setProfile] = useState(() => {
+    const saved = localStorage.getItem("uk_yatra_profile");
+    return saved
+      ? JSON.parse(saved)
+      : { full_name: "", home_city: "Vizianagaram", home_station: "VZM" };
+  });
+
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
 
   const [wishlistIds, setWishlistIds] = useState(() => {
     const saved = localStorage.getItem("uk_yatra_wishlist");
-    return saved ? JSON.parse(saved) : ["ap-tirumala", "sp-kamakhya"];
+    return saved ? JSON.parse(saved) : ["ap-tirumala", "tour-ap-araku"];
   });
 
   const [visitedIds, setVisitedIds] = useState(() => {
@@ -81,11 +111,92 @@ export default function App() {
   }, [visitedIds]);
 
   useEffect(() => {
+    localStorage.setItem("uk_yatra_profile", JSON.stringify(profile));
+  }, [profile]);
+
+  const handleSwitchMode = (newMode) => {
+    setPlaceMode(newMode);
+    setActiveFilter("All");
+    setSearchQuery("");
+    const firstInMode = allPlaces.find((p) => p.place_type === newMode);
+    if (firstInMode) {
+      setSelectedPlace(firstInMode);
+      setExpandedState(firstInMode.state);
+    }
+  };
+
+  const syncUserFromSupabase = async (authUser) => {
+    if (!supabase || !authUser?.id || authUser.id === "local") return;
+
+    const { data: profData } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .eq("id", authUser.id)
+      .single();
+
+    if (profData) {
+      setProfile({
+        full_name: profData.full_name || "",
+        home_city: profData.home_city || "Vizianagaram",
+        home_station: localStorage.getItem("uk_yatra_station") || "VZM",
+      });
+    } else {
+      await supabase.from("user_profiles").upsert({
+        id: authUser.id,
+        email: authUser.email,
+        full_name: authUser.email.split("@")[0],
+        home_city: "Vizianagaram",
+      });
+    }
+
+    const { data: logs } = await supabase
+      .from("user_temple_logs")
+      .select("temple_id, status")
+      .eq("user_id", authUser.id);
+
+    if (logs && logs.length > 0) {
+      setWishlistIds(logs.filter((l) => l.status === "WISHLIST").map((l) => l.temple_id));
+      setVisitedIds(logs.filter((l) => l.status === "VISITED").map((l) => l.temple_id));
+    }
+  };
+
+  useEffect(() => {
     if (!supabase) return;
     supabase.auth.getUser().then(({ data }) => {
-      if (data?.user?.email) setUserEmail(data.user.email);
+      if (data?.user) {
+        setUser(data.user);
+        localStorage.setItem("uk_yatra_email", data.user.email);
+        syncUserFromSupabase(data.user);
+      }
     });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+        localStorage.setItem("uk_yatra_email", session.user.email);
+        syncUserFromSupabase(session.user);
+      } else {
+        setUser(null);
+        localStorage.removeItem("uk_yatra_email");
+      }
+    });
+
+    return () => listener?.subscription?.unsubscribe();
   }, []);
+
+  const handleUpdateProfile = async (updatedData) => {
+    setProfile(updatedData);
+    localStorage.setItem("uk_yatra_station", updatedData.home_station);
+
+    if (supabase && user?.id && user.id !== "local") {
+      await supabase.from("user_profiles").upsert({
+        id: user.id,
+        email: user.email,
+        full_name: updatedData.full_name,
+        home_city: updatedData.home_city,
+      });
+    }
+  };
 
   const handleDetectLocation = () => {
     if (!navigator.geolocation) {
@@ -108,85 +219,163 @@ export default function App() {
     );
   };
 
-  const handleToggleStatus = (templeId, type) => {
-    if (!userEmail) {
+  const handleToggleStatus = async (placeId, type) => {
+    if (!user) {
       setShowAuthModal(true);
       return;
     }
 
+    const isCurrentlyInList =
+      type === "WISHLIST"
+        ? wishlistIds.includes(placeId)
+        : visitedIds.includes(placeId);
+
     if (type === "WISHLIST") {
       setWishlistIds((prev) =>
-        prev.includes(templeId) ? prev.filter((id) => id !== templeId) : [...prev, templeId]
+        isCurrentlyInList ? prev.filter((id) => id !== placeId) : [...prev, placeId]
       );
     } else {
       setVisitedIds((prev) =>
-        prev.includes(templeId) ? prev.filter((id) => id !== templeId) : [...prev, templeId]
+        isCurrentlyInList ? prev.filter((id) => id !== placeId) : [...prev, placeId]
       );
+    }
+
+    if (supabase && user?.id && user.id !== "local") {
+      if (isCurrentlyInList) {
+        await supabase
+          .from("user_temple_logs")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("temple_id", placeId);
+      } else {
+        await supabase.from("user_temple_logs").upsert(
+          {
+            user_id: user.id,
+            temple_id: placeId,
+            status: type,
+            visited_date: type === "VISITED" ? new Date().toISOString().split("T")[0] : null,
+          },
+          { onConflict: "user_id,temple_id" }
+        );
+      }
     }
   };
 
-  const filteredTemples = temples.filter((t) => {
+  // Filter places by active Mode ('temple' vs 'tourism'), Category & Search
+  const filteredPlaces = allPlaces.filter((p) => {
+    const matchesMode = p.place_type === placeMode;
     const matchesFilter =
       activeFilter === "All" ||
-      t.circuit.includes(activeFilter) ||
-      t.region === activeFilter;
+      p.circuit.includes(activeFilter) ||
+      p.region === activeFilter ||
+      p.sub_category === activeFilter;
 
     const q = searchQuery.toLowerCase();
     const matchesSearch =
-      t.name.toLowerCase().includes(q) ||
-      t.state.toLowerCase().includes(q) ||
-      t.city.toLowerCase().includes(q) ||
-      t.deity.toLowerCase().includes(q) ||
-      (t.fallen_part && t.fallen_part.toLowerCase().includes(q));
+      p.name.toLowerCase().includes(q) ||
+      p.state.toLowerCase().includes(q) ||
+      p.city.toLowerCase().includes(q) ||
+      (p.deity && p.deity.toLowerCase().includes(q)) ||
+      (p.sub_category && p.sub_category.toLowerCase().includes(q)) ||
+      (p.fallen_part && p.fallen_part.toLowerCase().includes(q));
 
-    return matchesFilter && matchesSearch;
+    return matchesMode && matchesFilter && matchesSearch;
   });
 
-  const templesByState = filteredTemples.reduce((acc, temple) => {
-    if (!acc[temple.state]) acc[temple.state] = [];
-    acc[temple.state].push(temple);
+  // Nearby Combo Suggestions (If viewing Temple -> show Tourism in same state, and vice-versa!)
+  const nearbyComboPlaces = useMemo(() => {
+    if (!selectedPlace) return [];
+    const targetType = selectedPlace.place_type === "temple" ? "tourism" : "temple";
+    const sameState = allPlaces.filter(
+      (p) => p.place_type === targetType && p.state === selectedPlace.state
+    );
+    if (sameState.length > 0) return sameState.slice(0, 3);
+    return allPlaces
+      .filter((p) => p.place_type === targetType && p.region === selectedPlace.region)
+      .slice(0, 3);
+  }, [selectedPlace, allPlaces]);
+
+  const placesByState = filteredPlaces.reduce((acc, place) => {
+    if (!acc[place.state]) acc[place.state] = [];
+    acc[place.state].push(place);
     return acc;
   }, {});
 
-  const stateNames = Object.keys(templesByState);
+  const stateNames = Object.keys(placesByState);
 
-  const handleSelectTemple = (temple) => {
-    setSelectedTemple(temple);
-    setExpandedState(temple.state);
+  const handleSelectPlace = (place) => {
+    if (place.place_type !== placeMode) {
+      setPlaceMode(place.place_type);
+      setActiveFilter("All");
+    }
+    setSelectedPlace(place);
+    setExpandedState(place.state);
   };
+
+  const currentFilters = placeMode === "temple" ? TEMPLE_FILTERS : TOURISM_FILTERS;
 
   return (
     <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-[500] bg-[#0d1322]/95 backdrop-blur-md border-b border-amber-500/20 px-4 lg:px-8 py-3.5">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/20">
-              <Compass className="w-6 h-6 text-slate-950" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
+      {/* Top Navbar with Instant [Temples] & [Tourism] Switcher right next to UK WEBS */}
+      <header className="sticky top-0 z-[500] bg-[#0d1322]/95 backdrop-blur-md border-b border-amber-500/20 px-4 lg:px-8 py-3">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          {/* Left: UK WEBS Brand + Prominent Mode Switcher */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                <Compass className="w-5 h-5 text-slate-950" />
+              </div>
+              <div>
                 <span className="text-[11px] font-extrabold tracking-widest uppercase px-2 py-0.5 rounded bg-orange-500/15 text-orange-400 border border-orange-500/30">
                   UK WEBS
                 </span>
-                <h1 className="text-lg sm:text-xl font-extrabold bg-gradient-to-r from-amber-200 via-orange-400 to-amber-500 bg-clip-text text-transparent">
-                  Sacred Bharat Yatra
-                </h1>
+                <p className="text-[11px] text-slate-400 hidden sm:block mt-0.5">
+                  Bharat Explorer
+                </p>
               </div>
-              <p className="text-xs text-slate-400">
-                {temples.length} Historic Temples • All 51 Shakti Peethas • 12 Jyotirlingas • Char Dham
-              </p>
+            </div>
+
+            {/* Instant Switcher Pill: Temples <-> Tourism */}
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
+              <button
+                onClick={() => handleSwitchMode("temple")}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer ${
+                  placeMode === "temple"
+                    ? "bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 shadow"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                <Landmark className="w-3.5 h-3.5" />
+                <span>Temples</span>
+              </button>
+
+              <button
+                onClick={() => handleSwitchMode("tourism")}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer ${
+                  placeMode === "tourism"
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                <Mountain className="w-3.5 h-3.5" />
+                <span>Tourism</span>
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
+          {/* Right: Search, My Yatra & Login */}
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
+            <div className="relative flex-1 lg:w-64">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search temple, state, body part..."
+                placeholder={
+                  placeMode === "temple"
+                    ? "Search temple, state, Shakti Peetha..."
+                    : "Search hill station, beach, fort, state..."
+                }
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-amber-500"
               />
             </div>
@@ -199,33 +388,39 @@ export default function App() {
               My Yatra ({visitedIds.length + wishlistIds.length})
             </button>
 
-            {!userEmail ? (
+            {!user ? (
               <button
                 onClick={() => setShowAuthModal(true)}
                 className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
               >
-                <UserCheck className="w-3.5 h-3.5 text-amber-400" /> Login
+                <UserCheck className="w-3.5 h-3.5 text-amber-400" /> Sign In
               </button>
             ) : (
-              <span className="hidden md:inline-block text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1.5 rounded-xl">
-                {userEmail.split("@")[0]}
-              </span>
+              <button
+                onClick={() => setShowDashboard(true)}
+                className="px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <User className="w-3.5 h-3.5" />
+                {profile.full_name || user.email.split("@")[0]}
+              </button>
             )}
           </div>
         </div>
       </header>
 
-      {/* Circuit & Region Filter Bar */}
+      {/* Dynamic Category / Circuit Filter Bar */}
       <div className="max-w-7xl w-full mx-auto px-4 lg:px-6 pt-4">
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          {CIRCUITS.map((item) => (
+          {currentFilters.map((item) => (
             <button
               key={item}
               onClick={() => setActiveFilter(item)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                 activeFilter === item
-                  ? "bg-orange-500 text-slate-950"
-                  : "bg-slate-900 text-slate-300 border border-slate-800 hover:border-orange-500/40"
+                  ? placeMode === "temple"
+                    ? "bg-orange-500 text-slate-950"
+                    : "bg-emerald-500 text-slate-950"
+                  : "bg-slate-900 text-slate-300 border border-slate-800 hover:border-amber-500/40"
               }`}
             >
               {item}
@@ -238,9 +433,9 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-6 space-y-4">
           <IndiaLeafletMap
-            temples={filteredTemples}
-            selectedTemple={selectedTemple}
-            onSelectTemple={handleSelectTemple}
+            temples={filteredPlaces}
+            selectedTemple={selectedPlace}
+            onSelectTemple={handleSelectPlace}
             visitedIds={visitedIds}
             userCoords={userCoords}
             onDetectLocation={handleDetectLocation}
@@ -251,15 +446,15 @@ export default function App() {
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
             <div className="flex items-center justify-between px-1">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Explore by State / Region ({stateNames.length} Regions)
+                Explore {placeMode === "temple" ? "Temples" : "Tourism"} by State ({stateNames.length})
               </span>
               <span className="text-[11px] text-amber-400">
-                Showing {filteredTemples.length} shrines
+                Showing {filteredPlaces.length} destinations
               </span>
             </div>
 
             {stateNames.map((stateName) => {
-              const stateTemples = templesByState[stateName];
+              const stateItems = placesByState[stateName];
               const isOpen = expandedState === stateName || searchQuery.trim().length > 0;
 
               return (
@@ -279,7 +474,7 @@ export default function App() {
                         {stateName}
                       </span>
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold">
-                        {stateTemples.length} {stateTemples.length === 1 ? "Shrine" : "Shrines"}
+                        {stateItems.length}
                       </span>
                     </div>
 
@@ -292,14 +487,14 @@ export default function App() {
 
                   {isOpen && (
                     <div className="p-2.5 pt-1 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-950/50">
-                      {stateTemples.map((t) => {
-                        const isSelected = selectedTemple?.id === t.id;
-                        const isVisited = visitedIds.includes(t.id);
+                      {stateItems.map((p) => {
+                        const isSelected = selectedPlace?.id === p.id;
+                        const isVisited = visitedIds.includes(p.id);
 
                         return (
                           <button
-                            key={t.id}
-                            onClick={() => setSelectedTemple(t)}
+                            key={p.id}
+                            onClick={() => setSelectedPlace(p)}
                             className={`p-2.5 rounded-lg border text-left transition cursor-pointer flex items-start justify-between gap-2 ${
                               isSelected
                                 ? "bg-orange-500/15 border-orange-500"
@@ -308,10 +503,10 @@ export default function App() {
                           >
                             <div>
                               <p className="text-xs font-bold text-slate-100 line-clamp-1">
-                                {t.name}
+                                {p.name}
                               </p>
                               <p className="text-[11px] text-slate-400">
-                                {t.city} {t.fallen_part ? `• ${t.fallen_part}` : ""}
+                                {p.city} • {p.sub_category || p.fallen_part || p.deity}
                               </p>
                             </div>
                             {isVisited && (
@@ -330,12 +525,15 @@ export default function App() {
 
         <div className="lg:col-span-6">
           <TempleDetailDrawer
-            temple={selectedTemple}
-            isWishlisted={wishlistIds.includes(selectedTemple?.id)}
-            isVisited={visitedIds.includes(selectedTemple?.id)}
+            temple={selectedPlace}
+            isWishlisted={wishlistIds.includes(selectedPlace?.id)}
+            isVisited={visitedIds.includes(selectedPlace?.id)}
             onToggleStatus={handleToggleStatus}
             userCoords={userCoords}
             onDetectLocation={handleDetectLocation}
+            defaultStation={profile.home_station}
+            comboPlaces={nearbyComboPlaces}
+            onSelectComboPlace={handleSelectPlace}
           />
         </div>
       </main>
@@ -345,7 +543,7 @@ export default function App() {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onDemoLogin={(email) => {
-          setUserEmail(email);
+          setUser({ id: "local", email });
           localStorage.setItem("uk_yatra_email", email);
         }}
       />
@@ -353,13 +551,16 @@ export default function App() {
       <YatraDashboardModal
         isOpen={showDashboard}
         onClose={() => setShowDashboard(false)}
-        temples={temples}
+        temples={allPlaces}
         wishlistIds={wishlistIds}
         visitedIds={visitedIds}
-        userEmail={userEmail}
-        onSelectTemple={handleSelectTemple}
-        onLogout={() => {
-          setUserEmail("");
+        user={user}
+        profile={profile}
+        onUpdateProfile={handleUpdateProfile}
+        onSelectTemple={handleSelectPlace}
+        onLogout={async () => {
+          if (supabase) await supabase.auth.signOut();
+          setUser(null);
           localStorage.removeItem("uk_yatra_email");
         }}
       />
